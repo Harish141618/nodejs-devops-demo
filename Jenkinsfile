@@ -61,6 +61,14 @@ pipeline {
                                 odcInstallation: 'DependencyCheck'
             }
         }
+    
+        stage('Docker Build') {
+            steps {
+                 sh '''
+                         docker build -t nodejs-app:${BUILD_NUMBER} .
+                    '''
+             }
+        }
     }
 
     post {
