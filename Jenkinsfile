@@ -29,16 +29,17 @@ pipeline {
             }
         }
 
-        stage('SonarQube Scan') {
-            steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh '''
-                    sonar-scanner
-                    '''
-                }
-            }
-        }
+       stage('SonarQube Scan') {
+         steps {
+             script {
+                def scannerHome = tool 'SonarScanner'
 
+                withSonarQubeEnv('SonarQube') {
+                sh "${scannerHome}/bin/sonar-scanner"
+               }
+            }
+         }
+       }
         stage('Quality Gate') {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
