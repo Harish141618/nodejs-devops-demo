@@ -141,9 +141,9 @@ pipeline {
                     sh '''
                     sed -i "s|image:.*|image: ${ECR_REPO}:${BUILD_NUMBER}|g" deployment.yml
 
-                    echo "Updated deployment.yaml"
+                    echo "Updated deployment.yml"
 
-                    cat deployment.yaml
+                    cat deployment.yml
                     '''
                 }
             }
