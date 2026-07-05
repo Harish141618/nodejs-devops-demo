@@ -5,6 +5,11 @@ pipeline {
         nodejs 'NodeJS18'
     }
 
+    environment {
+        AWS_REGION = 'us-east-1'
+        ECR_REPO = '261358762045.dkr.ecr.us-east-1.amazonaws.com/nodejs-app'
+    }
+
     stages {
 
         stage('Checkout') {
@@ -19,6 +24,8 @@ pipeline {
                 node -v
                 npm -v
                 git --version
+                docker --version
+                aws --version
                 '''
             }
         }
@@ -35,7 +42,7 @@ pipeline {
                     def scannerHome = tool 'SonarQube'
 
                     withSonarQubeEnv('SonarQube') {
-                        sh "${scannerHome}/bin/sonar-scanner"
+                        sh "${scannerHome}/bin/SonarQube"
                     }
                 }
             }
@@ -61,99 +68,122 @@ pipeline {
                                 odcInstallation: 'DependencyCheck'
             }
         }
-    
+
         stage('Docker Build') {
             steps {
-                 sh '''
-                         docker build -t nodejs-app:${BUILD_NUMBER} .
-                    '''
-             }
+                sh '''
+                docker build -t nodejs-app:${BUILD_NUMBER} .
+                '''
+            }
         }
-         stage('Tag Docker Image') {
-              steps {
-                  sh '''
-                      docker tag nodejs-app:${BUILD_NUMBER} \
-                      ${ECR_REPO}:${BUILD_NUMBER}
-                  '''
-               }
-         }
-         stage('Trivy File System Scan') {
+
+        stage('Tag Docker Image') {
             steps {
-                 sh '''
-                    trivy fs --severity HIGH,CRITICAL .
-                 '''
-             }
-         }
+                sh '''
+                docker tag nodejs-app:${BUILD_NUMBER} ${ECR_REPO}:${BUILD_NUMBER}
+                '''
+            }
+        }
 
-         stage('Trivy Image Scan') {
-             steps {
-                  sh '''
-                      trivy image --severity HIGH,CRITICAL nodejs-app:${BUILD_NUMBER}
-                  '''
-              }
-         }
-     
-         
-         stage('Push Docker Image') {
-              steps {
-                  sh '''
-                      docker push ${ECR_REPO}:${BUILD_NUMBER}
-                  '''
-               }
-         }
-         stage('Clone Manifest Repository') {
-              steps {
-                 dir('gitops') {
-                      git branch: 'main',
-                      credentialsId: 'github',
-                      url: 'https://github.com/Harish141618/nodejs-k8s-manifests.git'
-                 }
-              }
-         }  
-        stage('Update Manifest') {
-              steps {
-                  dir('gitops') {
-                           sh '''
-                                sed -i "s|image:.*|image: ${ECR_REPO}:.*|image: ${ECR_REPO}:${BUILD_NUMBER}|g" deployment.yaml
+        stage('Trivy File System Scan') {
+            steps {
+                sh '''
+                trivy fs --severity HIGH,CRITICAL .
+                '''
+            }
+        }
 
-                                cat deployment.yaml
-                            '''
-                   }
-               }
-         }
-         stage('Commit & Push Manifest') {
-                steps {
-                   dir('gitops') {
-                         withCredentials([usernamePassword(
-                                  credentialsId: 'github',
-                                  usernameVariable: 'GIT_USER',
-                                  passwordVariable: 'GIT_TOKEN'
-                          )]) {
+        stage('Trivy Image Scan') {
+            steps {
+                sh '''
+                trivy image --severity HIGH,CRITICAL ${ECR_REPO}:${BUILD_NUMBER}
+                '''
+            }
+        }
 
-                    sh '''
-                          git config user.email "jenkins@demo.com"
-                          git config user.name "Jenkins"
+        stage('Login to Amazon ECR') {
+            steps {
+                sh '''
+                aws configure list
 
-                          git add .
+                aws ecr get-login-password --region ${AWS_REGION} | \
+                docker login \
+                --username AWS \
+                --password-stdin 261358762045.dkr.ecr.us-east-1.amazonaws.com
+                '''
+            }
+        }
 
-                          git commit -m "Updated image ${BUILD_NUMBER}" || true
+        stage('Push Docker Image') {
+            steps {
+                sh '''
+                docker push ${ECR_REPO}:${BUILD_NUMBER}
+                '''
+            }
+        }
 
-                          git push https://${GIT_USER}:${GIT_TOKEN}@github.com/Harish141618/nodejs-k8s-manifests.git HEAD:main
-                          '''
-                     }
-                  }
+        stage('Clone Manifest Repository') {
+            steps {
+                dir('gitops') {
+                    git branch: 'main',
+                        credentialsId: 'github',
+                        url: 'https://github.com/Harish141618/nodejs-k8s-manifests.git'
                 }
-           }
-        
-      }
+            }
+        }
+
+        stage('Update Manifest') {
+            steps {
+                dir('gitops') {
+                    sh '''
+                    sed -i "s|image:.*|image: ${ECR_REPO}:${BUILD_NUMBER}|g" deployment.yaml
+
+                    echo "Updated deployment.yaml"
+
+                    cat deployment.yaml
+                    '''
+                }
+            }
+        }
+
+        stage('Commit & Push Manifest') {
+            steps {
+                dir('gitops') {
+
+                    withCredentials([usernamePassword(
+                        credentialsId: 'github',
+                        usernameVariable: 'GIT_USER',
+                        passwordVariable: 'GIT_TOKEN'
+                    )]) {
+
+                        sh '''
+                        git config user.email "jenkins@demo.com"
+                        git config user.name "Jenkins"
+
+                        git add .
+
+                        git commit -m "Updated image ${BUILD_NUMBER}" || true
+
+                        git push https://${GIT_USER}:${GIT_TOKEN}@github.com/Harish141618/nodejs-k8s-manifests.git HEAD:main
+                        '''
+                    }
+                }
+            }
+        }
+    }
 
     post {
+
         success {
             echo 'Pipeline Successful'
         }
 
         failure {
             echo 'Pipeline Failed'
+        }
+
+        always {
+            cleanWs()
         }
     }
 }
