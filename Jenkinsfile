@@ -77,6 +77,23 @@ pipeline {
                   '''
                }
          }
+         stage('Trivy File System Scan') {
+            steps {
+                 sh '''
+                    trivy fs --severity HIGH,CRITICAL .
+                 '''
+             }
+         }
+
+         stage('Trivy Image Scan') {
+             steps {
+                  sh '''
+                      trivy image --severity HIGH,CRITICAL nodejs-app:${BUILD_NUMBER}
+                  '''
+              }
+         }
+     
+         
          stage('Push Docker Image') {
               steps {
                   sh '''
@@ -127,22 +144,8 @@ pipeline {
                   }
                 }
            }
-        stage('Trivy File System Scan') {
-            steps {
-                 sh '''
-                    trivy fs --severity HIGH,CRITICAL .
-                 '''
-             }
-         }
-
-         stage('Trivy Image Scan') {
-             steps {
-                  sh '''
-                      trivy image --severity HIGH,CRITICAL nodejs-app:${BUILD_NUMBER}
-                  '''
-              }
-         }
-     }
+        
+      }
 
     post {
         success {
