@@ -139,7 +139,7 @@ pipeline {
             steps {
                 dir('gitops') {
                     sh '''
-                    sed -i "s|image:.*|image: ${ECR_REPO}:${BUILD_NUMBER}|g" deployment.yaml
+                    sed -i "s|image:.*|image: ${ECR_REPO}:${BUILD_NUMBER}|g" deployment.yml
 
                     echo "Updated deployment.yaml"
 
