@@ -154,7 +154,7 @@ pipeline {
                 dir('gitops') {
 
                     withCredentials([usernamePassword(
-                        credentialsId: 'github',
+                        credentialsId: 'git_id',
                         usernameVariable: 'GIT_USER',
                         passwordVariable: 'GIT_TOKEN'
                     )]) {
